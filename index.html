@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jumpman64</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     /* 1. INITIAL STYLES */
     html, body {
@@ -60,48 +61,130 @@
   </div>
 
   <script>
-    /**
-     * CACHE BUSTING: 
-     * Adding '?v=' + Date.now() ensures the URL is unique every time.
-     * This stops the browser and GitHub from serving an old cached version.
-     */
     const baseUrl = 'https://raw.githubusercontent.com/code-andrewy/jumpman64beta/main/index.html';
     const cacheBuster = '?v=' + Date.now();
     const url = baseUrl + cacheBuster;
 
-    fetch(url, {
-      cache: "no-store" // Extra instruction to the browser: do not use cache
-    })
+    fetch(url, { cache: "no-store" })
       .then(response => {
         if (!response.ok) throw new Error('Network response was not ok');
         return response.text();
       })
       .then(html => {
-        // Replace the page content
         document.open();
         document.write(html);
         document.close();
 
-        // RE-APPLY SCROLLBAR HIDING 
-        // We do this because document.write wipes the original <style> in the <head>
+        // --- POST-LOAD LOGIC ---
+
+        // 1. Inject Font Awesome into the new document head
+        const faLink = document.createElement('link');
+        faLink.rel = 'stylesheet';
+        faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(faLink);
+
+        // 2. Banner Styling
         const style = document.createElement('style');
         style.textContent = `
-          html, body { 
-            overflow: auto !important; 
-            margin: 0 !important; 
+          #jumpman-notice-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(90deg, #d32f2f, #f44336);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            z-index: 10001;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.4s ease;
           }
+          #jumpman-notice-banner i { margin-right: 10px; }
+          .banner-text { flex-grow: 1; text-align: center; font-weight: 600; }
+          
+          #close-banner-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 20px;
+            transition: opacity 0.2s;
+          }
+          #close-banner-btn:hover { opacity: 0.7; }
+
+          .banner-hidden { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+          
+          /* Adjust page layout when banner is active */
+          body.has-banner { padding-top: 40px !important; }
+          
+          /* Persistent scrollbar hiding */
           ::-webkit-scrollbar { display: none !important; }
-          * { 
-            scrollbar-width: none !important; 
-            -ms-overflow-style: none !important; 
-          }
+          * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
         `;
         document.head.appendChild(style);
+
+        // 3. Create Banner HTML
+        const banner = document.createElement('div');
+        banner.id = 'jumpman-notice-banner';
+        banner.innerHTML = `
+          <div style="width:40px"></div> <div class="banner-text">
+            <i class="fas fa-exclamation-triangle"></i>
+            Jumpman64 will stop being updated starting on 3/10/2026
+          </div>
+          <button id="close-banner-btn"><i class="fas fa-times"></i></button>
+        `;
+        document.body.appendChild(banner);
+
+        // 4. Cookie Helper Functions
+        function setCookie(name, value, days) {
+          const d = new Date();
+          d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+          document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/`;
+        }
+        function getCookie(name) {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        // 5. Toggle Logic
+        const isDismissed = getCookie('banner_dismissed');
+        const closeBtn = document.getElementById('close-banner-btn');
+
+        function checkVisibility() {
+          // Detect the game player: Check if an iframe is present and visible
+          const gameIframe = document.querySelector('iframe');
+          const isGameActive = !!gameIframe && gameIframe.offsetWidth > 0;
+
+          if (isDismissed === 'true' || isGameActive) {
+            banner.classList.add('banner-hidden');
+            document.body.classList.remove('has-banner');
+          } else {
+            banner.classList.remove('banner-hidden');
+            document.body.classList.add('has-banner');
+          }
+        }
+
+        // Handle Manual Close
+        closeBtn.addEventListener('click', () => {
+          setCookie('banner_dismissed', 'true', 7); // Hide for 7 days
+          banner.classList.add('banner-hidden');
+          document.body.classList.remove('has-banner');
+        });
+
+        // Run visibility check every second to detect if user opened/closed an iframe game
+        setInterval(checkVisibility, 1000);
+        checkVisibility();
+
       })
       .catch(error => {
         document.getElementById('status').style.color = 'red';
         document.getElementById('status').innerText = 'Error: ' + error.message;
-        console.error('Fetch error:', error);
       });
   </script>
 </body>
